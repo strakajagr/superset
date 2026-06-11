@@ -1,0 +1,38 @@
+name: Report a problem
+description: Something in Superset isn't working. File it here and our autonomous remediation system will pick it up.
+labels: ["devin-auto-remediate"]
+body:
+  - type: textarea
+    id: trying-to-do
+    attributes:
+      label: What were you trying to do
+      description: Describe the task you were working on, in your own words.
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened instead
+      description: What did you see? Include any error message exactly as it appeared.
+    validations:
+      required: true
+  - type: textarea
+    id: what-expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Numbered steps someone else could follow to see the same problem.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: demo branch
+    validations:
+      required: false
