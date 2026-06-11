@@ -19,9 +19,7 @@
 
 import { getTimeFormatter } from '@superset-ui/core';
 
-// Cal-Heatmap provides local timestamps (UTC shifted by the browser's timezone
-// offset). We subtract that offset so the formatter displays the correct UTC
-// date regardless of the browser's timezone.
+// Cal-Heatmap provides local timestamps. We subtract the offset so that utcFormat displays the correct local date.
 export const getFormattedUTCTime = (
   ts: number | string,
   timeFormat?: string,
