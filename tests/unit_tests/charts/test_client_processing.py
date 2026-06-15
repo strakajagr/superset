@@ -2945,3 +2945,49 @@ def test_apply_client_processing_csv_pivot_table_custom_separator() -> None:
     # Guard explicitly against the dot form slipping through, which is
     # what the previous (broken) implementation produced.
     assert "1234.56" not in output_data
+
+
+def test_pivot_df_grand_totals_override_for_ratio_metrics():
+    """
+    When grand_totals are provided, the grand total row should use the
+    pre-computed values instead of naively aggregating per-row values.
+    This is critical for ratio metrics like SUM(a)/SUM(b) where summing
+    the per-row ratios produces incorrect results.
+    """
+    # Simulate 5 offices with a completion-rate metric that is a ratio.
+    # The DB already aggregated per office; summing the ratios is wrong.
+    df = pd.DataFrame.from_dict(
+        {
+            "office": {0: "A", 1: "B", 2: "C", 3: "D", 4: "E"},
+            "completion_rate": {0: 0.85, 1: 0.90, 2: 0.95, 3: 0.88, 4: 0.89},
+        }
+    )
+
+    # Without grand_totals, the total row naively sums the ratios.
+    pivoted_naive = pivot_df(
+        df,
+        rows=["office"],
+        columns=[],
+        metrics=["completion_rate"],
+        aggfunc="Sum",
+        show_columns_total=True,
+    )
+    naive_total_row = pivoted_naive.iloc[-1]
+    naive_total_value = float(naive_total_row.iloc[0])
+    # Naive sum of ratios: 0.85 + 0.90 + 0.95 + 0.88 + 0.89 = 4.47
+    assert abs(naive_total_value - 4.47) < 0.01
+
+    # With grand_totals, the total row should use the pre-computed value.
+    grand_totals = {"completion_rate": 0.91}
+    pivoted_fixed = pivot_df(
+        df,
+        rows=["office"],
+        columns=[],
+        metrics=["completion_rate"],
+        aggfunc="Sum",
+        show_columns_total=True,
+        grand_totals=grand_totals,
+    )
+    fixed_total_row = pivoted_fixed.iloc[-1]
+    fixed_total_value = float(fixed_total_row.iloc[0])
+    assert abs(fixed_total_value - 0.91) < 0.001

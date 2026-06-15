@@ -74,6 +74,7 @@ def pivot_df(  # pylint: disable=too-many-locals, too-many-arguments, too-many-s
     show_rows_total: bool = False,
     show_columns_total: bool = False,
     apply_metrics_on_rows: bool = False,
+    grand_totals: Optional[dict[str, Any]] = None,
 ) -> pd.DataFrame:
     metric_name = __("Total (%(aggfunc)s)", aggfunc=aggfunc)
 
@@ -198,9 +199,27 @@ def pivot_df(  # pylint: disable=too-many-locals, too-many-arguments, too-many-s
                     )
                     raise
 
-                subtotal = pivot_v2_aggfunc_map[aggfunc](
-                    df.iloc[slice_, :].apply(pd.to_numeric, errors="coerce"), axis=0
-                )
+                is_grand_total = level == 0
+                if is_grand_total and grand_totals:
+                    # Use pre-computed totals from a separate query that
+                    # evaluates each metric over the full dataset.  This
+                    # produces correct results for ratio metrics such as
+                    # SUM(a)/SUM(b).
+                    subtotal = pd.Series(
+                        index=df.columns,
+                        dtype="float64",
+                    )
+                    for col in df.columns:
+                        metric_label = col[0] if isinstance(col, tuple) else col
+                        if metric_label in grand_totals:
+                            subtotal[col] = grand_totals[metric_label]
+                        else:
+                            subtotal[col] = np.nan
+                else:
+                    subtotal = pivot_v2_aggfunc_map[aggfunc](
+                        df.iloc[slice_, :].apply(pd.to_numeric, errors="coerce"),
+                        axis=0,
+                    )
                 depth = groups.nlevels - len(subgroup) - 1
                 total = metric_name if level == 0 else __("Subtotal")
                 subtotal.name = tuple([*subgroup, total, *([""] * depth)])  # noqa: C409
@@ -260,6 +279,7 @@ def pivot_table_v2(
     df: pd.DataFrame,
     form_data: dict[str, Any],
     datasource: Optional[Union["BaseDatasource", "Query"]] = None,
+    grand_totals: Optional[dict[str, Any]] = None,
 ) -> pd.DataFrame:
     """
     Pivot table v2.
@@ -277,6 +297,7 @@ def pivot_table_v2(
         show_rows_total=bool(form_data.get("rowTotals")),
         show_columns_total=bool(form_data.get("colTotals")),
         apply_metrics_on_rows=form_data.get("metricsLayout") == "ROWS",
+        grand_totals=grand_totals,
     )
 
 
@@ -322,9 +343,28 @@ def apply_client_processing(  # noqa: C901
     if viz_type not in post_processors:
         return result
 
-    post_processor = post_processors[viz_type]
+    # For pivot_table_v2, extract pre-computed grand totals from the second
+    # query (if present) so that ratio metrics display the correct total
+    # instead of a naive sum of per-row values.
+    grand_totals: Optional[dict[str, Any]] = None
+    queries = result["queries"]
+    has_totals = form_data.get("colTotals") or form_data.get("rowTotals")
+    if viz_type == "pivot_table_v2" and len(queries) > 1 and has_totals:
+        totals_query = queries[1]
+        totals_data = totals_query.get("data")
+        if totals_data:
+            if isinstance(totals_data, list) and len(totals_data) > 0:
+                grand_totals = totals_data[0]
+            elif isinstance(totals_data, dict):
+                grand_totals = {
+                    k: v[next(iter(v))]
+                    for k, v in totals_data.items()
+                    if isinstance(v, dict) and v
+                }
+        # Only process the main query; the totals query is consumed above.
+        queries = queries[:1]
 
-    for query in result["queries"]:
+    for query in queries:
         if query["result_format"] not in (rf.value for rf in ChartDataResultFormat):
             raise Exception(  # pylint: disable=broad-exception-raised
                 f"Result format {query['result_format']} not supported"
@@ -356,7 +396,14 @@ def apply_client_processing(  # noqa: C901
         if datasource:
             df.rename(columns=datasource.data["verbose_map"], inplace=True)
 
-        processed_df = post_processor(df, form_data, datasource)
+        if viz_type == "pivot_table_v2":
+            processed_df = pivot_table_v2(
+                df, form_data, datasource, grand_totals=grand_totals
+            )
+        elif viz_type == "table":
+            processed_df = table(df, form_data, datasource)
+        else:
+            continue
 
         query["colnames"] = list(processed_df.columns)
         query["indexnames"] = list(processed_df.index)
