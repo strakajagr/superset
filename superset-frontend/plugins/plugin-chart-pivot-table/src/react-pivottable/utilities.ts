@@ -848,6 +848,42 @@ class PivotData {
 
     // iterate through input, accumulating data for cells
     PivotData.forEachRecord(this.props.data, this.processRecord);
+
+    // When pre-computed grand totals are provided (from a separate totals
+    // query that computes each metric over the full dataset without GROUP BY),
+    // override the aggregated totals so that ratio metrics such as
+    // SUM(a)/SUM(b) display the correct value instead of a naive sum of
+    // per-row ratios.
+    const grandTotals = this.props.grandTotals as
+      | Record<string, number>
+      | undefined;
+    if (grandTotals) {
+      this.applyGrandTotals(grandTotals);
+    }
+  }
+
+  applyGrandTotals(grandTotals: Record<string, number>): void {
+    // Override colTotals and rowTotals whose key is a single metric name
+    // that appears in the pre-computed totals.
+    for (const [key, agg] of Object.entries(this.colTotals)) {
+      // flatKey for a single-element array is just the element itself
+      if (key in grandTotals) {
+        const preComputed = grandTotals[key];
+        agg.value = () => preComputed;
+      }
+    }
+    for (const [key, agg] of Object.entries(this.rowTotals)) {
+      if (key in grandTotals) {
+        const preComputed = grandTotals[key];
+        agg.value = () => preComputed;
+      }
+    }
+    // Override allTotal: sum of all pre-computed metric totals.
+    const totalValue = Object.values(grandTotals).reduce(
+      (sum: number, v) => sum + (typeof v === 'number' ? v : 0),
+      0,
+    );
+    this.allTotal.value = () => totalValue;
   }
 
   getFormattedAggregator(record: PivotRecord, totalsKeys?: string[]) {

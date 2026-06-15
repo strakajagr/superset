@@ -257,6 +257,7 @@ export default function PivotTableChart(props: PivotTableProps) {
     onContextMenu,
     timeGrainSqla,
     allowRenderHtml,
+    grandTotals,
   } = props;
 
   const theme = useTheme();
@@ -711,6 +712,7 @@ export default function PivotTableChart(props: PivotTableProps) {
           namesMapping={verboseMap}
           onContextMenu={handleContextMenu}
           allowRenderHtml={allowRenderHtml}
+          grandTotals={grandTotals}
         />
       </PivotTableWrapper>
     </Styles>

@@ -55,6 +55,8 @@ export default function buildQuery(formData: PivotTableQueryFormData) {
     return col;
   });
 
+  const { colTotals, rowTotals } = formData;
+
   return buildQueryContext(formData, baseQueryObject => {
     const { series_limit_metric, metrics, order_desc } = baseQueryObject;
     let orderBy: QueryFormOrderBy[] | undefined;
@@ -63,12 +65,31 @@ export default function buildQuery(formData: PivotTableQueryFormData) {
     } else if (Array.isArray(metrics) && metrics[0]) {
       orderBy = [[metrics[0], !order_desc]];
     }
-    return [
+
+    const queries = [
       {
         ...baseQueryObject,
         orderby: orderBy,
         columns,
       },
     ];
+
+    // When totals are enabled, add a second query that computes each metric
+    // over the full dataset (no GROUP BY). This produces the correct grand
+    // total for ratio metrics such as SUM(a)/SUM(b), which cannot be derived
+    // by aggregating the per-row values that the main query returns.
+    if (metrics?.length && (colTotals || rowTotals)) {
+      queries.push({
+        ...baseQueryObject,
+        columns: [],
+        row_limit: 0,
+        row_offset: 0,
+        post_processing: [],
+        order_desc: undefined,
+        orderby: undefined,
+      });
+    }
+
+    return queries;
   });
 }

@@ -132,3 +132,29 @@ test('should not omit extras.time_grain_sqla from queryContext so dashboards app
   const [query] = queryContext.queries;
   expect(query.extras?.time_grain_sqla).toEqual(TimeGranularity.QUARTER);
 });
+
+test('should add a grand totals query when colTotals is enabled', () => {
+  const queryContext = buildQuery(formData);
+  expect(queryContext.queries.length).toBe(2);
+  const totalsQuery = queryContext.queries[1];
+  expect(totalsQuery.columns).toEqual([]);
+  expect(totalsQuery.row_limit).toBe(0);
+  expect(totalsQuery.post_processing).toEqual([]);
+});
+
+test('should add a grand totals query when rowTotals is enabled', () => {
+  const modifiedFormData = { ...formData, colTotals: false, rowTotals: true };
+  const queryContext = buildQuery(modifiedFormData);
+  expect(queryContext.queries.length).toBe(2);
+  expect(queryContext.queries[1].columns).toEqual([]);
+});
+
+test('should not add a grand totals query when both totals are disabled', () => {
+  const modifiedFormData = {
+    ...formData,
+    colTotals: false,
+    rowTotals: false,
+  };
+  const queryContext = buildQuery(modifiedFormData);
+  expect(queryContext.queries.length).toBe(1);
+});

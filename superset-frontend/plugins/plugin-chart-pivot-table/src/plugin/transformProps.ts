@@ -94,6 +94,14 @@ export default function transformProps(chartProps: ChartProps<QueryFormData>) {
     coltypes,
     detected_currency: detectedCurrency,
   } = queriesData[0];
+
+  // Second query (when present) computes each metric over the full dataset
+  // without GROUP BY, providing correct grand totals for ratio metrics.
+  const totalsQuery = queriesData.length > 1 ? queriesData[1] : undefined;
+  const grandTotals = totalsQuery?.data?.[0] as
+    | Record<string, number>
+    | undefined;
+
   const {
     groupbyRows,
     groupbyColumns,
@@ -195,5 +203,6 @@ export default function transformProps(chartProps: ChartProps<QueryFormData>) {
     onContextMenu,
     timeGrainSqla,
     allowRenderHtml,
+    grandTotals,
   };
 }
