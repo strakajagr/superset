@@ -216,6 +216,20 @@ test('Close popover with ESC or ENTER', async () => {
   expect(props.setPopoverVisible).toHaveBeenCalledWith(false);
 });
 
+test('Popover container does not show a focus outline', () => {
+  const props = createProps();
+
+  render(
+    <DetailsPanel {...props}>
+      <div>Content</div>
+    </DetailsPanel>,
+    { useRedux: true },
+  );
+
+  const menu = screen.getByRole('menu');
+  expect(menu).toHaveStyleRule('outline', 'none', { target: ':focus' });
+});
+
 test('Arrow key navigation switches focus between indicators', () => {
   // Prepare props with two indicators
   const props = createProps();
